@@ -1,1 +1,202 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h> // Para verificar se caracteres são dígitos
+
+#define MAX 100 // Número máximo de contas e movimentações
+
+// Definição da estrutura para Movimentação (Crédito ou Débito)
+typedef struct {
+    char data[11]; // Data da movimentação no formato "DD-MM-AAAA"
+    char tipo;     // Tipo da movimentação: 'C' (Crédito) ou 'D' (Débito)
+    float valor;   // Valor movimentado
+} Movimentacao;
+
+// Definição da estrutura para Conta
+typedef struct {
+    char id[20];            // Identificador único da conta
+    float saldo;            // Saldo atual da conta
+    Movimentacao movs[MAX]; // Lista de movimentações
+    int num_movs;           // Quantidade de movimentações realizadas
+} Conta;
+
+// Função para salvar todas as contas no arquivo
+void salvarContas(Conta *contas, int n) {
+    FILE *fp = fopen("contas.dat", "wb"); // Abre o arquivo em modo binário para escrita
+    if (fp == NULL) {
+        printf("Erro ao salvar contas.\n");
+        return;
+    }
+    fwrite(&n, sizeof(int), 1, fp);       // Salva primeiro o número de contas
+    fwrite(contas, sizeof(Conta), n, fp); // Depois salva os dados das contas
+    fclose(fp);
+}
+
+// Função para carregar as contas do arquivo
+int carregarContas(Conta *contas) {
+    FILE *fp = fopen("contas.dat", "rb"); // Abre o arquivo em modo binário para leitura
+    int n = 0;
+    if (fp == NULL) {
+        return 0; // Se o arquivo não existir, retorna 0 contas
+    }
+    fread(&n, sizeof(int), 1, fp);         // Lê o número de contas
+    fread(contas, sizeof(Conta), n, fp);   // Lê os dados das contas
+    fclose(fp);
+    return n;
+}
+
+// Função para cadastrar uma nova conta
+void cadastrarConta(Conta *contas, int *n) {
+    printf("ID da conta: ");
+    scanf("%s", contas[*n].id); // Lê o identificador da nova conta
+    contas[*n].saldo = 0;       // Inicializa saldo com 0
+    contas[*n].num_movs = 0;    // Nenhuma movimentação ainda
+    (*n)++;                    // Incrementa o contador de contas
+    printf("Conta cadastrada com sucesso!\n");
+}
+
+// Função para encontrar uma conta pelo ID
+int encontrarConta(Conta *contas, int n, char *id) {
+    for (int i = 0; i < n; i++) {
+        if (strcmp(contas[i].id, id) == 0) {
+            return i; // Retorna o índice da conta encontrada
+        }
+    }
+    return -1; // Conta não encontrada
+}
+
+// Função para movimentar uma conta (crédito ou débito)
+void movimentarConta(Conta *contas, int n) {
+    char id[20];
+    printf("ID da conta: ");
+    scanf("%s", id);
+
+    int idx = encontrarConta(contas, n, id);
+    if (idx == -1) {
+        printf("Conta não encontrada!\n");
+        return;
+    }
+
+    if (contas[idx].num_movs >= MAX) {
+        printf("Número máximo de movimentações atingido.\n");
+        return;
+    }
+
+    Movimentacao *m = &contas[idx].movs[contas[idx].num_movs]; // Nova movimentação
+    printf("Tipo (C para crédito, D para débito): ");
+    scanf(" %c", &m->tipo); // Importante: espaço antes de %c para ignorar '\n'
+    printf("Valor: ");
+    scanf("%f", &m->valor);
+    printf("Data (DD-MM-AAAA): ");
+    scanf("%s", m->data);
+
+    // Atualiza o saldo baseado no tipo de movimentação
+    if (m->tipo == 'C') {
+        contas[idx].saldo += m->valor; // Crédito adiciona saldo
+    } else if (m->tipo == 'D') {
+        contas[idx].saldo -= m->valor; // Débito reduz saldo
+    } else {
+        printf("Tipo inválido.\n");
+        return;
+    }
+
+    contas[idx].num_movs++; // Incrementa o número de movimentações
+    printf("Movimentação realizada!\n");
+}
+
+// Função para listar todas as contas cadastradas
+void listarContas(Conta *contas, int n) {
+    for (int i = 0; i < n; i++) {
+        printf("\nConta: %s\n", contas[i].id);
+        printf("Saldo: R$ %.2f\n", contas[i].saldo);
+    }
+}
+
+// Função para verificar e mostrar a primeira data que o saldo ficou zero
+void dataMinimaSaldoZero(Conta *contas, int n) {
+    for (int i = 0; i < n; i++) {
+        float saldo = 0.0;
+        int encontrou = 0;
+
+        // Simula o saldo aplicando cada movimentação
+        for (int j = 0; j < contas[i].num_movs; j++) {
+            if (contas[i].movs[j].tipo == 'C') {
+                saldo += contas[i].movs[j].valor;
+            } else if (contas[i].movs[j].tipo == 'D') {
+                saldo -= contas[i].movs[j].valor;
+            }
+
+            // Detecta a primeira vez que o saldo fica exatamente zero
+            if (saldo == 0 && !encontrou) {
+                printf("Conta %s teve saldo zero em %s\n", contas[i].id, contas[i].movs[j].data);
+                encontrou = 1;
+            }
+        }
+
+        if (!encontrou) {
+            printf("Conta %s nunca teve saldo zero.\n", contas[i].id);
+        }
+    }
+}
+
+// Função principal com o menu de opções
+int main() {
+    Conta contas[MAX];             // Vetor para armazenar as contas
+    int n = carregarContas(contas); // Carrega contas previamente salvas
+    int opcao;
+    char entrada[100];              // String para capturar a entrada do usuário
+
+    do {
+        printf("\n=== Sistema de Controle de Contas ===\n");
+        printf("1. Cadastrar Conta\n");
+        printf("2. Movimentar Conta\n");
+        printf("3. Listar Contas\n");
+        printf("4. Verificar Data de Saldo Zero\n");
+        printf("5. Sair\n");
+        printf("Escolha uma opção: ");
+        scanf("%s", entrada); // Sempre ler como string para validar melhor
+
+        // Verifica se a entrada é numérica
+        int valido = 1;
+        for (int i = 0; entrada[i] != '\0'; i++) {
+            if (!isdigit(entrada[i])) {
+                valido = 0;
+                break;
+            }
+        }
+
+        if (valido) {
+            opcao = atoi(entrada); // Converte a string para número
+        } else {
+            printf("Entrada inválida! Digite apenas números.\n");
+            opcao = -1; // Marca como opção inválida
+        }
+
+        // Executa ação baseada na escolha do usuário
+        switch (opcao) {
+            case 1:
+                cadastrarConta(contas, &n);
+                salvarContas(contas, n);
+                break;
+            case 2:
+                movimentarConta(contas, n);
+                salvarContas(contas, n);
+                break;
+            case 3:
+                listarContas(contas, n);
+                break;
+            case 4:
+                dataMinimaSaldoZero(contas, n);
+                break;
+            case 5:
+                salvarContas(contas, n);
+                printf("Saindo...\n");
+                break;
+            default:
+                printf("Opção inválida.\n");
+        }
+    } while (opcao != 5);
+
+    return 0;
+}
 
